@@ -1,0 +1,96 @@
+# SwiftLint Configuration: Ottie Express
+# Swift 6.0 | iOS 18.0+ | iPhone 17 Pro
+#
+# Governance alignment:
+#   Line length:     .vscode/settings.json ruler (120)
+#   Force unwrap:    CLAUDE.md §3.3, §10.1
+#   print/NSLog:     CLAUDE.md §3.3, §10.1
+#   Em dashes:       Design Doc §3 Global Rules
+
+excluded:
+  - .build
+  - DerivedData
+  - Pods
+  - Carthage
+  - SourcePackages
+  - .swiftpm
+  - .githooks
+
+strict: true
+
+opt_in_rules:
+  - closure_body_length
+  - convenience_type
+  - empty_count
+  - empty_string
+  - fatal_error_message
+  - file_name
+  - first_where
+  - force_unwrapping
+  - modifier_order
+  - prohibited_interface_builder
+  - toggle_bool
+  - unused_private_declaration
+
+line_length:
+  warning: 120
+  error: 160
+  ignores_comments: true
+  ignores_urls: true
+  ignores_interpolated_strings: true
+
+function_body_length:
+  warning: 50
+  error: 100
+
+type_body_length:
+  warning: 300
+  error: 500
+
+file_length:
+  warning: 400
+  error: 600
+  ignore_comment_only_lines: true
+
+cyclomatic_complexity:
+  warning: 10
+  error: 20
+
+nesting:
+  type_level: 2
+  function_level: 3
+
+identifier_name:
+  min_length:
+    warning: 2
+    error: 1
+  max_length:
+    warning: 60
+    error: 80
+  excluded:
+    - id
+    - x
+    - y
+    - i
+    - j
+    - dx
+    - dy
+
+custom_rules:
+  no_print:
+    name: "No print/debugPrint Statements"
+    regex: '\b(print|debugPrint)\s*\('
+    message: "Use structured logging instead of print()/debugPrint() [CLAUDE.md §3.3]"
+    severity: error
+
+  no_nslog:
+    name: "No NSLog Statements"
+    regex: '\bNSLog\s*\('
+    message: "Use structured logging instead of NSLog() [CLAUDE.md §3.3]"
+    severity: error
+
+  no_em_dash:
+    name: "No Em Dashes"
+    regex: '\x{2014}'
+    message: "Em dashes prohibited [Design Doc §3 Global Rules]"
+    severity: error

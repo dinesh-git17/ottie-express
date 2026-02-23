@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# Ottie Express: Commit Message Validation
+# Enforces: Protocol Zero (§2), Conventional Commits (§4.3)
+#
+# Validation stages:
+#   1. Protocol Zero    - attribution scan on commit message text
+#   2. Conventional Commits - format, scope, length, punctuation
+
+set -uo pipefail
+
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+# ---------------------------------------------------------------------------
+# Color: TTY-aware ANSI
+# ---------------------------------------------------------------------------
+if [ -t 1 ]; then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[0;33m'
+    CYAN='\033[0;36m'
+    BOLD='\033[1m'
+    DIM='\033[2m'
+    RESET='\033[0m'
+else
+    RED='' GREEN='' YELLOW='' CYAN='' BOLD='' DIM='' RESET=''
+fi
+
+# ---------------------------------------------------------------------------
+# Input
+# ---------------------------------------------------------------------------
+COMMIT_MSG_FILE="$1"
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+
+# Extract subject line: first non-comment, non-empty line
+SUBJECT=$(grep -v '^#' "$COMMIT_MSG_FILE" | grep -v '^$' | head -1)
+FULL_MSG=$(grep -v '^#' "$COMMIT_MSG_FILE")
+
+EXIT_CODE=0
+
+# ---------------------------------------------------------------------------
+# Output helpers
+# ---------------------------------------------------------------------------
+print_status() {
+    local name="$1"
+    local status="$2"
+    local color="$3"
+    local note="${4:-}"
+
+    local name_len=${#name}
+    local status_len=${#status}
+    local dot_count=$((44 - name_len - status_len))
+    if [ "$dot_count" -lt 2 ]; then dot_count=2; fi
+
+    local dots=""
+    for ((i = 0; i < dot_count; i++)); do dots="${dots}."; done
+
+    printf "  ${color}●${RESET} %s ${DIM}%s${RESET} ${color}${BOLD}%s${RESET}" "$name" "$dots" "$status"
+    if [ -n "$note" ]; then
+        printf "  ${DIM}(%s)${RESET}" "$note"
+    fi
+    printf "\n"
+}
+
+pass()         { print_status "$1" "PASS" "${GREEN}" "${2:-}"; }
+fail()         { print_status "$1" "FAIL" "${RED}"; EXIT_CODE=1; }
+error_detail() { printf "      ${RED}%s${RESET}\n" "$1"; }
+info_detail()  { printf "      ${DIM}%s${RESET}\n" "$1"; }
+
+# ---------------------------------------------------------------------------
+# Banner
+# ---------------------------------------------------------------------------
+printf "\n"
+printf "  ${BOLD}${CYAN}┌────────────────────────────────────────────────┐${RESET}\n"
+printf "  ${BOLD}${CYAN}│  Ottie Express: Commit Message Validation      │${RESET}\n"
+printf "  ${BOLD}${CYAN}└────────────────────────────────────────────────┘${RESET}\n"
+printf "\n"
+
+# ===========================================================================
+# Stage 1: Protocol Zero on commit message
+# ===========================================================================
+PZ_SCRIPT="${REPO_ROOT}/protocol-zero.sh"
+
+if [ -x "$PZ_SCRIPT" ]; then
+    PZ_OUTPUT=$("$PZ_SCRIPT" --commit-msg "$FULL_MSG" 2>&1)
+    PZ_EXIT=$?
+
+    if [ $PZ_EXIT -eq 0 ]; then
+        pass "Protocol Zero"
+    else
+        fail "Protocol Zero"
+        # Strip ANSI codes from protocol-zero.sh output before re-rendering
+        echo "$PZ_OUTPUT" | sed $'s/\033\[[0-9;]*m//g' | grep -E '(Source:|Pattern:|Match:)' | head -5 | while IFS= read -r line; do
+            error_detail "$line"
+        done
+    fi
+else
+    printf "  ${YELLOW}●${RESET} %-44s ${YELLOW}${BOLD}SKIP${RESET}  ${DIM}(script not found)${RESET}\n" "Protocol Zero"
+fi
+
+# ===========================================================================
+# Stage 2: Conventional Commits format
+# ===========================================================================
+
+# Allow merge commits through without format validation
+if [[ "$SUBJECT" =~ ^Merge\ (branch|pull|tag|remote) ]]; then
+    pass "Conventional Commits" "merge commit"
+
+# Allow fixup/squash commits (interactive rebase workflow)
+elif [[ "$SUBJECT" =~ ^(fixup!|squash!|amend!) ]]; then
+    pass "Conventional Commits" "fixup commit"
+
+else
+    VALID_TYPES="feat|fix|refactor|test|chore|docs"
+    CC_REGEX="^($VALID_TYPES)\([a-z0-9-]+\): .+"
+
+    if [[ "$SUBJECT" =~ $CC_REGEX ]]; then
+        # Validate subject line constraints
+        ERRORS=()
+
+        if [ ${#SUBJECT} -gt 72 ]; then
+            ERRORS+=("Subject exceeds 72 characters (${#SUBJECT})")
+        fi
+
+        if [[ "$SUBJECT" == *"." ]]; then
+            ERRORS+=("No trailing period on subject line")
+        fi
+
+        if [ ${#ERRORS[@]} -eq 0 ]; then
+            pass "Conventional Commits"
+        else
+            fail "Conventional Commits"
+            for err in "${ERRORS[@]}"; do
+                error_detail "$err"
+            done
+        fi
+    else
+        fail "Conventional Commits"
+        error_detail "Expected format: type(scope): description"
+        info_detail "Types: feat, fix, refactor, test, chore, docs"
+        info_detail "Scope: lowercase, hyphen-separated (e.g., chapter0, audio-service)"
+        info_detail "Example: feat(chapter0): add fingerprint scan animation"
+    fi
+fi
+
+# ---------------------------------------------------------------------------
+# Summary
+# ---------------------------------------------------------------------------
+printf "\n"
+printf "  ${BOLD}────────────────────────────────────────────────────${RESET}\n"
+if [ $EXIT_CODE -eq 0 ]; then
+    printf "  ${GREEN}${BOLD}Result:${RESET} ${GREEN}Commit message is valid.${RESET}\n"
+else
+    printf "  ${RED}${BOLD}Result:${RESET} ${RED}Commit message rejected. Fix and retry.${RESET}\n"
+fi
+printf "  ${BOLD}────────────────────────────────────────────────────${RESET}\n"
+printf "\n"
+
+exit $EXIT_CODE

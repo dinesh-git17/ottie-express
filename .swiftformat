@@ -1,0 +1,85 @@
+# SwiftFormat Configuration: Ottie Express
+
+# Swift 6.0 | iOS 18.0+ | iPhone 17 Pro
+
+#
+
+# Aligned to .vscode/settings.json
+
+# Indent: 4 spaces
+
+# Max width: 120 characters
+
+# Final newline: required
+
+--swiftversion 6.0
+
+# Indentation
+
+--indent 4
+--indentcase true
+--ifdef no-indent
+--xcodeindentation disabled
+
+# Line wrapping
+
+--maxwidth 120
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--closingparen balanced
+
+# Whitespace
+
+--trimwhitespace always
+
+# Braces and control flow
+
+--elseposition same-line
+--guardelse next-line
+
+# Commas
+
+--commas always
+
+# Imports
+
+--importgrouping alpha
+
+# Self
+
+--self remove
+
+# Semicolons
+
+--semicolons never
+
+# Unused arguments
+
+--stripunusedargs closure-only
+
+# Operators
+
+--operatorfunc spaced
+
+# Types
+
+--voidtype void
+
+# Headers: do not modify file headers
+
+--header ignore
+
+# Number formatting
+
+--decimalgrouping 3,4
+
+# Type attributes
+
+--typeattributes prev-line
+--funcattributes prev-line
+--varattributes prev-line
+
+# Exclusions
+
+--exclude DerivedData,.build,Pods,Carthage,SourcePackages,.swiftpm,.githooks
