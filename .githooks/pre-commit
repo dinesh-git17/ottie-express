@@ -1,0 +1,296 @@
+#!/usr/bin/env bash
+# Ottie Express: Pre-Commit Validation Pipeline
+# Enforces: Protocol Zero (§2), SwiftFormat, SwiftLint, Em Dash Rule (Design Doc §3)
+#
+# Pipeline stages:
+#   1. Protocol Zero    - codebase attribution scan
+#   2. SwiftFormat      - formatting verification (lint mode)
+#   3. SwiftLint        - style and correctness (strict mode)
+#   4. Em Dash Check    - Unicode em dash detection in staged files
+#   5. Tests            - graceful skip when no project/targets exist
+
+# Do NOT use set -e: exit codes are accumulated across all stages
+set -uo pipefail
+
+# ---------------------------------------------------------------------------
+# PATH: Homebrew on Apple Silicon. GUI git clients do not inherit shell PATH.
+# ---------------------------------------------------------------------------
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+# ---------------------------------------------------------------------------
+# Color: TTY-aware ANSI. Disabled for non-interactive contexts (GUI clients).
+# ---------------------------------------------------------------------------
+if [ -t 1 ]; then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[0;33m'
+    CYAN='\033[0;36m'
+    BOLD='\033[1m'
+    DIM='\033[2m'
+    RESET='\033[0m'
+else
+    RED='' GREEN='' YELLOW='' CYAN='' BOLD='' DIM='' RESET=''
+fi
+
+# ---------------------------------------------------------------------------
+# Pipeline state
+# ---------------------------------------------------------------------------
+EXIT_CODE=0
+PASSED=0
+FAILED=0
+SKIPPED=0
+
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ -z "$REPO_ROOT" ]; then
+    printf "  ${RED}Not a git repository. Aborting.${RESET}\n"
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Staged file lists (exclude deleted files via --diff-filter=ACMR)
+# ---------------------------------------------------------------------------
+STAGED_ALL=$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null || true)
+STAGED_SWIFT=$(echo "$STAGED_ALL" | grep '\.swift$' || true)
+STAGED_TEXT=$(echo "$STAGED_ALL" | grep -E '\.(swift|md|strings|stringsdict|txt|plist)$' || true)
+
+# ---------------------------------------------------------------------------
+# Output helpers
+# ---------------------------------------------------------------------------
+print_banner() {
+    printf "\n"
+    printf "  ${BOLD}${CYAN}%-50s${RESET}\n" "┌────────────────────────────────────────────────┐"
+    printf "  ${BOLD}${CYAN}│  Ottie Express: Pre-Commit Pipeline            │${RESET}\n"
+    printf "  ${BOLD}${CYAN}%-50s${RESET}\n" "└────────────────────────────────────────────────┘"
+    printf "\n"
+}
+
+# Print a status line with dot leaders for visual alignment
+print_status() {
+    local name="$1"
+    local status="$2"
+    local color="$3"
+    local note="${4:-}"
+
+    local name_len=${#name}
+    local status_len=${#status}
+    local dot_count=$((44 - name_len - status_len))
+    if [ "$dot_count" -lt 2 ]; then dot_count=2; fi
+
+    local dots=""
+    for ((i = 0; i < dot_count; i++)); do dots="${dots}."; done
+
+    printf "  ${color}●${RESET} %s ${DIM}%s${RESET} ${color}${BOLD}%s${RESET}" "$name" "$dots" "$status"
+    if [ -n "$note" ]; then
+        printf "  ${DIM}(%s)${RESET}" "$note"
+    fi
+    printf "\n"
+}
+
+pass()  { print_status "$1" "PASS" "${GREEN}"; PASSED=$((PASSED + 1)); }
+fail()  { print_status "$1" "FAIL" "${RED}";   FAILED=$((FAILED + 1)); EXIT_CODE=1; }
+skip()  { print_status "$1" "SKIP" "${YELLOW}" "$2"; SKIPPED=$((SKIPPED + 1)); }
+
+error_detail() { printf "      ${RED}%s${RESET}\n" "$1"; }
+info_detail()  { printf "      ${DIM}%s${RESET}\n" "$1"; }
+
+print_summary() {
+    printf "\n"
+    printf "  ${BOLD}────────────────────────────────────────────────────${RESET}\n"
+    if [ $EXIT_CODE -eq 0 ]; then
+        local msg="All checks passed."
+        if [ $SKIPPED -gt 0 ]; then
+            msg="All checks passed. ($SKIPPED skipped)"
+        fi
+        printf "  ${GREEN}${BOLD}Result:${RESET} ${GREEN}%s${RESET}\n" "$msg"
+    else
+        printf "  ${RED}${BOLD}Result:${RESET} ${RED}%d check(s) failed. Commit blocked.${RESET}\n" "$FAILED"
+    fi
+    printf "  ${BOLD}────────────────────────────────────────────────────${RESET}\n"
+    printf "\n"
+}
+
+# ===========================================================================
+# Stage 1: Protocol Zero
+# ===========================================================================
+check_protocol_zero() {
+    local script="${REPO_ROOT}/protocol-zero.sh"
+
+    if [ ! -x "$script" ]; then
+        fail "Protocol Zero"
+        error_detail "protocol-zero.sh not found or not executable at repo root"
+        return
+    fi
+
+    local output
+    output=$("$script" 2>&1)
+    local result=$?
+
+    if [ $result -eq 0 ]; then
+        pass "Protocol Zero"
+    else
+        fail "Protocol Zero"
+        # Strip ANSI codes from protocol-zero.sh output before re-rendering
+        echo "$output" | sed $'s/\033\[[0-9;]*m//g' | grep -E '(Source:|Pattern:|Match:|├─|│\s+Content:)' | head -12 | while IFS= read -r line; do
+            error_detail "$line"
+        done
+    fi
+}
+
+# ===========================================================================
+# Stage 2: SwiftFormat (lint mode, no auto-fix)
+# ===========================================================================
+check_swiftformat() {
+    if [ -z "$STAGED_SWIFT" ]; then
+        skip "SwiftFormat" "no Swift files staged"
+        return
+    fi
+
+    if ! command -v swiftformat &>/dev/null; then
+        fail "SwiftFormat"
+        error_detail "swiftformat not installed. Run: brew install swiftformat"
+        return
+    fi
+
+    local output
+    output=$(echo "$STAGED_SWIFT" | xargs swiftformat --lint --quiet 2>&1)
+    local result=$?
+
+    if [ $result -eq 0 ]; then
+        pass "SwiftFormat"
+    else
+        fail "SwiftFormat"
+        error_detail "Run 'swiftformat .' to auto-fix formatting issues"
+        echo "$output" | head -10 | while IFS= read -r line; do
+            [ -n "$line" ] && error_detail "  $line"
+        done
+    fi
+}
+
+# ===========================================================================
+# Stage 3: SwiftLint (strict mode)
+# ===========================================================================
+check_swiftlint() {
+    if [ -z "$STAGED_SWIFT" ]; then
+        skip "SwiftLint" "no Swift files staged"
+        return
+    fi
+
+    if ! command -v swiftlint &>/dev/null; then
+        fail "SwiftLint"
+        error_detail "swiftlint not installed. Run: brew install swiftlint"
+        return
+    fi
+
+    local output
+    output=$(echo "$STAGED_SWIFT" | xargs swiftlint lint --strict --quiet --force-exclude 2>&1)
+    local result=$?
+
+    if [ $result -eq 0 ]; then
+        pass "SwiftLint"
+    else
+        fail "SwiftLint"
+        echo "$output" | head -15 | while IFS= read -r line; do
+            [ -n "$line" ] && error_detail "  $line"
+        done
+    fi
+}
+
+# ===========================================================================
+# Stage 4: Em Dash Detection (Design Doc §3 Global Rules)
+# ===========================================================================
+check_em_dash() {
+    if [ -z "$STAGED_TEXT" ]; then
+        skip "Em Dash Check" "no text files staged"
+        return
+    fi
+
+    # Exclude governance, skill references, and design docs from em dash enforcement.
+    # The Design Doc §3 em dash rule targets app text surfaces, not engineering documentation.
+    local files_to_check
+    files_to_check=$(echo "$STAGED_TEXT" | grep -v -E '(CLAUDE\.md|protocol-zero\.sh|\.swiftlint\.yml|\.claude/skills/|docs/)' || true)
+
+    if [ -z "$files_to_check" ]; then
+        skip "Em Dash Check" "only governance files staged"
+        return
+    fi
+
+    # U+2014 (em dash) detection
+    local violations
+    violations=$(echo "$files_to_check" | xargs grep -n $'\xe2\x80\x94' 2>/dev/null || true)
+
+    if [ -z "$violations" ]; then
+        pass "Em Dash Check"
+    else
+        fail "Em Dash Check"
+        error_detail "Em dashes prohibited [Design Doc §3 Global Rules]"
+        error_detail "Use periods, commas, or restructure the sentence."
+        echo "$violations" | head -8 | while IFS= read -r line; do
+            error_detail "  $line"
+        done
+    fi
+}
+
+# ===========================================================================
+# Stage 5: Tests (graceful skip when unavailable)
+# ===========================================================================
+check_tests() {
+    local xcodeproj
+    xcodeproj=$(find "$REPO_ROOT" -maxdepth 1 -name "*.xcodeproj" -print -quit 2>/dev/null || true)
+    local package_swift="${REPO_ROOT}/Package.swift"
+
+    # No project file: skip
+    if [ -z "$xcodeproj" ] && [ ! -f "$package_swift" ]; then
+        skip "Tests" "no Xcode project or Package.swift"
+        return
+    fi
+
+    # SPM project: run swift test
+    if [ -f "$package_swift" ]; then
+        if ! grep -q 'testTarget' "$package_swift" 2>/dev/null; then
+            skip "Tests" "no test targets in Package.swift"
+            return
+        fi
+
+        local output
+        output=$(cd "$REPO_ROOT" && swift test --quiet 2>&1)
+        local result=$?
+
+        if [ $result -eq 0 ]; then
+            pass "Tests"
+        else
+            fail "Tests"
+            echo "$output" | grep -E '(error:|FAIL|failed)' | head -8 | while IFS= read -r line; do
+                error_detail "  $line"
+            done
+        fi
+        return
+    fi
+
+    # Xcode project: check for test targets
+    local target_list
+    target_list=$(xcodebuild -project "$xcodeproj" -list 2>/dev/null || true)
+
+    if ! echo "$target_list" | grep -q "Test"; then
+        skip "Tests" "no test targets found"
+        return
+    fi
+
+    # Test targets exist but running xcodebuild in pre-commit is too slow.
+    # Tests are deferred to CI or manual verification.
+    skip "Tests" "run via Xcode or CI"
+}
+
+# ===========================================================================
+# Pipeline execution
+# ===========================================================================
+print_banner
+
+check_protocol_zero
+check_swiftformat
+check_swiftlint
+check_em_dash
+check_tests
+
+print_summary
+
+exit $EXIT_CODE

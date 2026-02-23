@@ -1,0 +1,147 @@
+# ============================================================================
+# Ottie Express — Repository Ignore Rules
+# Platform: iOS 18.0+ / SwiftUI / Swift 6.0
+# ============================================================================
+
+# ============================================================================
+# Xcode Build Artifacts
+# ============================================================================
+
+build/
+DerivedData/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.xccheckout
+*.xcscmblueprint
+
+# User-specific Xcode state (breakpoints, window layout, font prefs)
+xcuserdata/
+
+# Xcode project internals — keep only project.pbxproj and xcshareddata
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcodeproj/project.xcworkspace/
+!*.xcworkspace/contents.xcworkspacedata
+**/xcshareddata/WorkspaceSettings.xcsettings
+
+# Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# ============================================================================
+# Swift Package Manager
+# ============================================================================
+
+.build/
+.swiftpm/xcode/xcuserdata/
+.swiftpm/xcode/package.xcworkspace/
+SourcePackages/
+Packages/
+
+# Note: Package.resolved is committed (application, not library).
+
+# ============================================================================
+# Dependency Managers
+# ============================================================================
+
+# CocoaPods
+Pods/
+
+# Carthage
+Carthage/Build/
+Carthage/Checkouts/
+
+# Accio
+Dependencies/
+.accio/
+
+# ============================================================================
+# Editor & Workspace Files
+# ============================================================================
+
+# VS Code — user-specific state only; settings.json is shared project config
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# JetBrains IDEs
+.idea/
+
+# Vim / Neovim
+*.swp
+*.swo
+*~
+
+# ============================================================================
+# macOS System Files
+# ============================================================================
+
+.DS_Store
+.__MACOSX/
+.AppleDouble
+.LSOverride
+._*
+Icon?
+
+# Volume root artifacts
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# AFP shares
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# iCloud sync artifacts
+*.icloud
+
+# ============================================================================
+# Logs & Temporary Files
+# ============================================================================
+
+*.log
+*.crash
+*.ips
+*.profraw
+*.profdata
+*.gcda
+*.gcno
+
+# ============================================================================
+# Secrets & Local Overrides
+# ============================================================================
+
+.env
+.env.*
+*.xcconfig.local
+
+# Claude Code user-local settings (permission cache, session state)
+.claude/settings.local.json
+
+# ============================================================================
+# Build Outputs & Archives
+# ============================================================================
+
+*.xcarchive
+*.app
+*.framework.dSYM/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Code injection
+iOSInjectionProject/
