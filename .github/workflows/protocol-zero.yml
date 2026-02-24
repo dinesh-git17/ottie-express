@@ -1,6 +1,8 @@
 name: Protocol Zero
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -8,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: protocol-zero-${{ github.event.pull_request.number }}
+  group: protocol-zero-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
 jobs:
