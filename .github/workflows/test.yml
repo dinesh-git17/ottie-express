@@ -1,0 +1,58 @@
+name: Test
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect project and run tests
+        run: |
+          if [ -f Package.swift ]; then
+            if grep -q 'testTarget' Package.swift 2>/dev/null; then
+              echo "::group::Swift Package Manager Tests"
+              swift test
+              echo "::endgroup::"
+            else
+              echo "::notice title=Tests Skipped::Package.swift found but contains no test targets"
+            fi
+
+          elif ls *.xcodeproj 1>/dev/null 2>&1; then
+            SCHEME=$(xcodebuild -list -json 2>/dev/null \
+              | python3 -c "import sys,json; s=json.load(sys.stdin)['project']['schemes']; print(s[0] if s else '')" \
+              2>/dev/null || echo "")
+
+            if [ -z "$SCHEME" ]; then
+              echo "::notice title=Tests Skipped::Xcode project found but no schemes detected"
+              exit 0
+            fi
+
+            echo "::group::Xcode Tests (scheme: ${SCHEME})"
+            xcodebuild test \
+              -scheme "$SCHEME" \
+              -destination 'platform=iOS Simulator,OS=latest,name=iPhone 16 Pro' \
+              CODE_SIGNING_ALLOWED=NO \
+              -quiet \
+              2>&1 || {
+              EXIT_CODE=$?
+              echo "::endgroup::"
+              exit $EXIT_CODE
+            }
+            echo "::endgroup::"
+
+          else
+            echo "::notice title=Tests Skipped::No Xcode project or Package.swift found"
+          fi

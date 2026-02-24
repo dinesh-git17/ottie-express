@@ -1,0 +1,46 @@
+name: Format
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: format-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  swiftformat:
+    name: SwiftFormat
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for Swift files
+        id: check
+        run: |
+          if find . -name '*.swift' \
+            ! -path './.build/*' \
+            ! -path '*/DerivedData/*' \
+            ! -path '*/.swiftpm/*' \
+            | grep -q .; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run SwiftFormat lint
+        if: steps.check.outputs.found == 'true'
+        run: |
+          swiftformat --lint . 2>&1 || {
+            echo ""
+            echo "::error::SwiftFormat violations detected. Run 'swiftformat .' locally to auto-fix."
+            exit 1
+          }
+
+      - name: No Swift files
+        if: steps.check.outputs.found == 'false'
+        run: echo "::notice title=SwiftFormat Skipped::No Swift files found in repository"

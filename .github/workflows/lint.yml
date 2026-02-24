@@ -1,0 +1,60 @@
+name: Lint
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  swiftlint:
+    name: SwiftLint
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for Swift files
+        id: check
+        run: |
+          if find . -name '*.swift' \
+            ! -path './.build/*' \
+            ! -path '*/DerivedData/*' \
+            ! -path '*/.swiftpm/*' \
+            | grep -q .; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run SwiftLint
+        if: steps.check.outputs.found == 'true'
+        run: swiftlint lint --strict --reporter github-actions-logging
+
+      - name: No Swift files
+        if: steps.check.outputs.found == 'false'
+        run: echo "::notice title=SwiftLint Skipped::No Swift files found in repository"
+
+      - name: Check for em dashes in text files
+        if: always()
+        run: |
+          violations=$(find . -type f \
+            \( -name '*.strings' -o -name '*.stringsdict' -o -name '*.txt' -o -name '*.plist' \) \
+            ! -path './.git/*' \
+            ! -path './.build/*' \
+            ! -path '*/DerivedData/*' \
+            -exec grep -l $'\xe2\x80\x94' {} \; 2>/dev/null || true)
+
+          if [ -n "$violations" ]; then
+            echo "::error::Em dashes (U+2014) detected in text files [Design Doc §3 Global Rules]"
+            echo "$violations" | while IFS= read -r file; do
+              line=$(grep -n $'\xe2\x80\x94' "$file" | head -1 | cut -d: -f1)
+              echo "::error file=${file},line=${line}::Contains prohibited em dash character"
+            done
+            exit 1
+          fi

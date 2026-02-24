@@ -1,0 +1,103 @@
+name: PR Status
+
+on:
+  workflow_run:
+    workflows: [Lint, Format, Protocol Zero, Test]
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: pr-status-${{ github.event.workflow_run.pull_requests[0].number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  report:
+    name: Status Report
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.pull_requests[0]
+    steps:
+      - name: Collect workflow statuses
+        id: collect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+        run: |
+          RUNS_JSON=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${HEAD_SHA}&per_page=100" \
+            --jq '[.workflow_runs[] | {name, status, conclusion}]')
+
+          get_status() {
+            local name="$1"
+            local status conclusion
+
+            status=$(echo "$RUNS_JSON" | jq -r --arg n "$name" \
+              '[.[] | select(.name == $n)] | .[0].status // "pending"')
+            conclusion=$(echo "$RUNS_JSON" | jq -r --arg n "$name" \
+              '[.[] | select(.name == $n)] | .[0].conclusion // "none"')
+
+            if [ "$status" = "completed" ]; then
+              echo "$conclusion"
+            elif [ "$status" = "pending" ] || [ "$status" = "null" ]; then
+              echo "pending"
+            else
+              echo "$status"
+            fi
+          }
+
+          build_row() {
+            local name="$1"
+            local raw_status
+            raw_status=$(get_status "$name")
+
+            case "$raw_status" in
+              success)     echo "| ${name} | Pass | - |" ;;
+              failure)     echo "| ${name} | Fail | See workflow logs |" ;;
+              cancelled)   echo "| ${name} | Cancelled | Run was cancelled |" ;;
+              skipped)     echo "| ${name} | Skipped | - |" ;;
+              pending)     echo "| ${name} | Pending | Awaiting run |" ;;
+              in_progress) echo "| ${name} | Running | In progress |" ;;
+              queued)      echo "| ${name} | Queued | Waiting for runner |" ;;
+              *)           echo "| ${name} | ${raw_status} | - |" ;;
+            esac
+          }
+
+          {
+            echo "table<<TABLE_EOF"
+            echo "| Workflow | Status | Notes |"
+            echo "|----------|--------|-------|"
+            build_row "Lint"
+            build_row "Format"
+            build_row "Protocol Zero"
+            build_row "Test"
+            echo "TABLE_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Find existing status comment
+        uses: peter-evans/find-comment@v3
+        id: find
+        with:
+          issue-number: ${{ steps.collect.outputs.pr_number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: '<!-- ottie-ci-status -->'
+
+      - name: Post or update status comment
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          comment-id: ${{ steps.find.outputs.comment-id }}
+          issue-number: ${{ steps.collect.outputs.pr_number }}
+          body: |
+            <!-- ottie-ci-status -->
+            ## CI Status
+
+            ${{ steps.collect.outputs.table }}
+
+            *Last updated by `${{ github.event.workflow_run.name }}` workflow completion*
+          edit-mode: replace
