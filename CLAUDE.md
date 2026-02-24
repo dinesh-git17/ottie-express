@@ -204,6 +204,7 @@ Skills are enforcement tools, not optional helpers. When a task falls within a s
 | **SFSpeechRecognizer Mic Permission** | `.claude/skills/sfspeechrecognizer-mic-permission/` | Speech recognition, dual-permission flows, `AVAudioEngine` input, teardown.              | Chapter 2 voice input, microphone permission handling.                                           |
 | **Typewriter Text Animation**         | `.claude/skills/typewriter-text-animation/`         | Progressive text reveal, timing, cursor, scroll stability, cancellation.                 | `TypewriterText` component, any character-by-character text animation.                           |
 | **Phase Epic Decomposition**          | `.claude/skills/phase-epic-decomposition/`          | Design-to-implementation roadmaps, phase sequencing, epic scoping.                       | When translating the design doc into implementation phases.                                      |
+| **FAANG Epic Writing**                | `.claude/skills/faang-epic-writing/`                | Epic expansion, binary DoD, scope boundaries, dependency validation, file mapping.       | Expanding PHASES.md epics into standalone documents, epic review, DoD construction.              |
 
 ### 5.2 Skill Override Rule
 
