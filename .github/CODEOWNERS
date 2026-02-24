@@ -1,0 +1,27 @@
+# CODEOWNERS — Ottie Express
+#
+# Ownership assignments for automated review routing.
+# Combined with branch protection rules, this file makes
+# code owner review mandatory for all PRs targeting main.
+#
+# Syntax: last matching pattern takes precedence.
+# Reference: https://docs.github.com/articles/about-code-owners
+
+# Default: repository owner
+*                               @dinesh-git17
+
+# Governance infrastructure
+/CLAUDE.md                      @dinesh-git17
+/protocol-zero.sh               @dinesh-git17
+/.githooks/                     @dinesh-git17
+/.github/                       @dinesh-git17
+
+# Design and architecture authority
+/docs/                          @dinesh-git17
+
+# Skill definitions
+/.claude/skills/                @dinesh-git17
+
+# Linting and formatting config
+/.swiftlint.yml                 @dinesh-git17
+/.swiftformat                   @dinesh-git17

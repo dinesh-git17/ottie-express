@@ -24,7 +24,7 @@ No other document, convention, or prior training may override this hierarchy. If
 
 ### 1.2 Binding Obligation
 
-Execution of any task in this repository constitutes acceptance of every rule defined herein. Every section (§1–§14) is **BLOCKING**. A violation of any section is a governance failure resulting in immediate work rejection.
+Execution of any task in this repository constitutes acceptance of every rule defined herein. Every section (§1–§15) is **BLOCKING**. A violation of any section is a governance failure resulting in immediate work rejection.
 
 ### 1.3 Agent Refusal Mandate
 
@@ -181,6 +181,8 @@ Every PR MUST include:
 | **Testing notes**  | How the change was verified. Steps to reproduce, device, OS version. |
 
 Empty PR descriptions are rejected. PRs without testing notes are rejected.
+
+The PR template (`.github/pull_request_template.md`) is the enforcement mechanism for these requirements. See §15 for agent compliance rules.
 
 ---
 
@@ -422,6 +424,7 @@ A task is complete only when **ALL** of the following hold:
 - [ ] Tests pass (if they exist).
 - [ ] Applicable skills were consulted and their constraints followed.
 - [ ] Design document compliance verified for any architectural decision.
+- [ ] PR template sections completed per §15.1 (if submitting a PR).
 
 If any item fails, the task is not done.
 
@@ -449,8 +452,98 @@ For rapid reference, the agent's behavioral contract:
 
 ## §14 Enforcement
 
-Every rule in §1–§13 is BLOCKING. Violation of any section — authority (§1), protocol zero (§2), code standards (§3), git workflow (§4), skill registry (§5), design document authority (§6), refusal rules (§7), dependency policy (§8), anti-hallucination (§9), engineering standards (§10), testing (§11), definition of done (§12), or agent behavior (§13) — is a governance violation resulting in immediate work rejection.
+Every rule in §1–§13 and §15 is BLOCKING. Violation of any section — authority (§1), protocol zero (§2), code standards (§3), git workflow (§4), skill registry (§5), design document authority (§6), refusal rules (§7), dependency policy (§8), anti-hallucination (§9), engineering standards (§10), testing (§11), definition of done (§12), agent behavior (§13), or pull request governance (§15) — is a governance violation resulting in immediate work rejection.
 
 The agent MUST refuse requests that would produce violations.
 
 No exceptions.
+
+---
+
+## §15 Pull Request Governance
+
+**Priority: BLOCKING. This section governs all PR creation and review behavior.**
+
+### 15.1 Template Compliance
+
+Every pull request MUST use the PR template (`.github/pull_request_template.md`). The following sections are mandatory and MUST NOT be left empty or deleted:
+
+| Section                  | Requirement                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------- |
+| **Summary**              | Concise explanation of intent. Not a restatement of the diff.                         |
+| **Design Doc Alignment** | Reference to the design doc section(s) implemented. Deviations declared explicitly.   |
+| **Architectural Impact** | Affected modules, chapters, or services listed. Cross-module dependencies identified. |
+| **Risk Surface**         | Failure modes and affected components described.                                      |
+| **Testing**              | Device, OS version, scenarios verified, tests added. No exceptions.                   |
+| **Protocol Zero**        | All assertions confirmed. `./protocol-zero.sh` must exit 0 on the branch.             |
+
+**Dependency Changes** may state "None" if no dependencies were modified. **Evidence** is required when the change affects visual output, audio, or animation. **Reviewer Guidance** is required when the change introduces architectural uncertainty or tradeoffs.
+
+**Agent Refusal Policy:** If a PR is missing mandatory sections, the agent MUST:
+
+1. **HALT** — Do not create or submit the PR.
+2. **REJECT** — State: "PR template sections are mandatory per §15.1."
+3. **ASSIST** — Help the user complete the missing sections.
+
+### 15.2 PR Title Standard
+
+PR titles MUST follow the Conventional Commits format defined in §4.3:
+
+```
+type(scope): imperative description
+```
+
+**Constraints:**
+
+- Under 70 characters total.
+- Imperative mood. No trailing period.
+- Scope required. Lowercase, hyphen-separated identifier for the affected area.
+- Type must be one of: `feat`, `fix`, `refactor`, `test`, `chore`, `docs`.
+
+**Valid examples:**
+
+```
+feat(chapter2): add haiku API response validation
+fix(audio-service): resume BGM after system interruption
+chore(ci): add protocol zero workflow
+docs(design-doc): update state architecture guidance
+refactor(state): migrate chapter progress to @Observable
+```
+
+**Rejected titles and reasons:**
+
+| Title                                                | Violation                                        |
+| ---------------------------------------------------- | ------------------------------------------------ |
+| `fix stuff`                                          | No scope, vague description.                     |
+| `updates`                                            | No type, no scope, no description.               |
+| `WIP: chapter 1`                                     | WIP is not a valid type.                         |
+| `Fixed the bug in audio`                             | Past tense, no scope delimiter.                  |
+| `feat(chapter0,chapter1,state): overhaul everything` | Scope too broad. Split the PR.                   |
+| `#456`                                               | Issue-only title. No context without navigation. |
+
+**Agent Enforcement:** The agent MUST validate PR titles against this format before creating a PR. If a title does not conform, the agent MUST refuse and propose a corrected title. The agent MUST NOT create a PR with a non-conforming title.
+
+### 15.3 Governance Authority in PR Context
+
+**CLAUDE.md and the Design Document are the combined source of truth for all PR decisions.**
+
+If any PR conflicts with either document, the agent MUST:
+
+1. **HALT** — Do not approve, merge, or proceed.
+2. **REJECT** — Cite the specific section of CLAUDE.md or the design document that is violated.
+3. **WAIT** — Request clarification from the repository owner.
+
+The agent MUST NOT approve or create PRs that:
+
+- Introduce architectural patterns not sanctioned by the design document.
+- Violate Protocol Zero (§2) in any file, comment, or commit message.
+- Skip mandatory PR template sections.
+- Contain non-conforming PR titles.
+- Bundle unrelated changes into a single PR.
+- Exceed reasonable scope without justification.
+
+### 15.4 Squash Merge Governance
+
+This repository uses squash merge (§4.2). In a squash merge workflow, the PR title becomes the commit message on the `main` branch. This makes the PR title the authoritative historical record.
+
+**Implication:** Every constraint that applies to commit messages (§4.3) applies equally to PR titles. The PR title is not a summary — it is the production commit message.
